@@ -5,9 +5,6 @@ import sys
 import argparse
 import joblib
 
-cachedir = '/data/mboos/joblib'
-memory = joblib.Memory(cachedir=cachedir)
-
 def recursive_glob(folder_name, expr='*.wav'):
     '''Returns list of files in folder_name and all subfolders that match expr'''
     import fnmatch

@@ -1,7 +1,5 @@
 from __future__ import division
-import sys
 import os
-import glob
 import mvpa2.suite as mvpa
 import numpy as np
 import joblib
@@ -16,7 +14,6 @@ def preprocess_and_tmp_save_fmri(datapath, task, subj, model, scratch_path, grou
     run-wise linear de-trending and z-scoring'''
     from nipype.interfaces import fsl
     dhandle = mvpa.OpenFMRIDataset(datapath)
-    #mask_fname = os.path.join('/home','mboos','SpeechEncoding','temporal_lobe_mask_brain_subj' + str(subj) + 'bold.nii.gz')
 
     flavor = 'dico_bold7Tp1_to_subjbold7Tp1'
     group_brain_mask = 'brainmask_group_template.nii.gz'
@@ -47,7 +44,8 @@ def cut_out_overlap(run_a, run_b):
 def process_subj(subj, scratch_path='/data/mboos/tmp/',
                  save_path='/data/mboos/encoding/fmri/',
                  datapath='/data/forrest_gump/phase1', **kwargs):
-    '''this function preprocesses subj run-wise and then saves it in voxel-splits'''
+    '''this function preprocesses subj run-wise and then saves it as a joblib pickle under save_path'''
+    # Forrest Gump, auditory version
     task = 1
     model = 1
 
