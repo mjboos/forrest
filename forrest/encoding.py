@@ -13,6 +13,10 @@ from sklearn.utils import check_X_y, check_array
 from sklearn.utils.validation import check_is_fitted
 from sklearn.base import RegressorMixin
 
+def block_estimator_to_multioutput(block_estimator):
+    '''Returns one estimator from concatenating all block estimators'''
+    pass
+
 def coef_to_float32(estimator):
     estimator.coef_ = estimator.coef_.astype('float32')
     return estimator
@@ -185,7 +189,25 @@ def encoding_for_subject(subj, stimulus_name='logBSC_H200', folder='/data/mboos/
     and returns a tuple of (predictions, Ridge-model)'''
     fit_model_func = memory.cache(get_ridge_predictions_model)
     stimulus = joblib.load(join(folder,'stimulus','preprocessed', '{}_stimuli.pkl'.format(stimulus_name)))
-    #TODO: revert from test
-    fmri = joblib.load(join(folder,'fmri','test_fmri_subj_{}.pkl'.format(subj)),
+    fmri = joblib.load(join(folder,'fmri','fmri_subj_{}.pkl'.format(subj)),
                              mmap_mode='c')
     return fit_model_func(stimulus, fmri, n_splits=n_splits, n_jobs=n_jobs, **ridge_params)
+
+def pearson_r(x,y):
+    from sklearn.preprocessing import StandardScaler
+    x = StandardScaler().fit_transform(x)
+    y = StandardScaler().fit_transform(y)
+    n = x.shape[0]
+    r = (1/(n-1))*(x*y).sum(axis=0)
+    return r
+
+def score_predictions(predictions, subj, folder='/data/mboos/encoding', n_splits=10):
+    '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
+    file_name = join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj))
+    fmri = joblib.load(file_name, mmap_mode='r')
+    split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
+    scores = []
+    for indices in split_indices:
+        scores.append(pearson_r(predictions[:, indices], fmri[:, indices]))
+    return np.concatenate(scores)
+
