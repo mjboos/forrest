@@ -204,7 +204,7 @@ def pearson_r(x,y):
 def score_predictions(predictions, subj, folder='/data/mboos/encoding', n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
     file_name = join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj))
-    fmri = joblib.load(file_name, mmap_mode='r')
+    fmri = joblib.load(file_name, mmap_mode='c')
     split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
     scores = []
     for indices in split_indices:

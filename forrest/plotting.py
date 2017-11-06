@@ -15,19 +15,21 @@ def save_map(scores, threshold=None, model='logBSC_H200', name='mean', mask='gro
     fname = os.path.join(folder, 'maps', '{}_{}_map.nii.gz'.format(name, model))
     unmasked.to_filename(fname)
 
-def glassbrain_contours(map_dict, colors=['r', 'g', 'b', 'cyan', 'magenta', 'k'], cutoff=[90]):
+def glassbrain_contours(map_dict, colors=['r', 'g', 'b', 'cyan', 'magenta', 'k'], cutoff=[90], smooth=None, alpha=1.0, **kwargs):
     import nilearn.image as img
     from nilearn import plotting
-    img_dict = { label : img.load_img(filename) for label, filename in map_dict.iteritems()}
-    display = plotting.plot_glass_brain(None)
-    for color, (label, image) in zip(colors, img_dict.iteritems()):
-        display.add_contours(image, levels=cutoff, colors=color)
+    from itertools import cycle
+    img_dict = { label : img.load_img(map_dict[label]) for label in sorted(map_dict.keys())}
+    display = plotting.plot_glass_brain(None, **kwargs)
+    for color, (label, image) in zip(cycle(colors), img_dict.iteritems()):
+        image = img.smooth_img(image, fwhm=smooth)
+        cutoff_perc = np.percentile(image.get_data().flatten(), cutoff)
+        display.add_contours(image, levels=cutoff_perc, colors=color, alpha=alpha)
     return display
 
-def plot_scores(scores, threshold=0.01, coords=None, folder='/home/mboos/encoding_paper',
-                   data_path='/data/forrest_gump/phase1', mask='group_temporal_lobe_mask.nii.gz', **kwargs):
+def plot_scores(scores, threshold=0.01, coords=None, path='/data/forrest_gump/phase1', mask='group_temporal_lobe_mask.nii.gz', **kwargs):
     '''plots subject scoremap using nilearn and returns display object'''
-    background_img = os.path.join(data_path, 'templates','grpbold7Tp1/brain.nii.gz')
+    background_img = os.path.join(path, 'templates','grpbold7Tp1/brain.nii.gz')
     scores = scores.copy()
     scores[scores<threshold] = 0
     unmasked = unmask(scores, mask)
@@ -39,8 +41,8 @@ def plot_scores(scores, threshold=0.01, coords=None, folder='/home/mboos/encodin
     fig.set_size_inches(12, 4)
     return display
 
-def plot_diff_scores(scores, threshold=0.01, coords=None, folder='/home/mboos/encoding_paper',
-                        data_path='/data/forrest_gump/phase1', mask='group_temporal_lobe_mask.nii.gz', **kwargs):
+def plot_diff_scores(scores, threshold=0.01, coords=None,
+                     data_path='/data/forrest_gump/phase1', mask='group_temporal_lobe_mask.nii.gz', **kwargs):
     '''plots subject scoremap using nilearn and returns display object'''
     background_img = os.path.join(data_path, 'templates','grpbold7Tp1/brain.nii.gz')
     scores = scores.copy()
@@ -204,4 +206,18 @@ def make_pc_plots(pcs, model, folder='/home/mboos/encoding_paper/plots',
         if mean_map:
             save_map(mean_scores, model=model, name='mean_PC_{}'.format(pc+1))
 
-
+def arr_to_mni_map(arr, fname, threshold=None, mask='group_temporal_lobe_mask.nii.gz', **kwargs):
+    '''Transforms arr to mni space and saves it as mni map'''
+    from nipype.interfaces import fsl
+    if threshold is not None:
+        arr[arr<threshold] = 0
+    unmasked = unmask(arr, mask)
+    unmasked.to_filename(fname)
+    flirt = fsl.ApplyXFM()
+    flirt.inputs.in_file = fname
+    flirt.inputs.out_file = fname
+    flirt.inputs.padding_size = 0
+    flirt.inputs.interp = 'nearestneighbour'
+    flirt.inputs.reference = '/data/forrest_gump/phase1/templates/grpbold7Tp1/in_mni/brain_12dof.nii.gz'
+    flirt.inputs.in_matrix_file ='/data/forrest_gump/phase1/templates/grpbold7Tp1/xfm/tmpl2mni_12dof.mat'
+    flirt.run()
