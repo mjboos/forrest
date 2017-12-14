@@ -37,23 +37,25 @@ class LeaveOneGroupCombinationOut(BaseCrossValidator):
         groups = check_array(groups, copy=True, ensure_2d=False, dtype=None)
         return np.multiply.reduce([len(np.unique(group)) for group in groups.T])
 
-
-def fit_cross_subject_model(targets, stimulus_name, estimator, n_targets=3, n_runs=8, cv_args=None):
+def fit_cross_subject_model(targets, features, estimator, n_targets=3, n_runs=8, cv_args=None):
     '''Fits an estimator to targets using the features specified in stimulus_name.
     Returns a tuple of a fitted estimator and the cross-validated predictions'''
     from sklearn.model_selection import cross_val_predict
     if cv_args is None:
         cv_args = {'cv' : LeaveOneGroupCombinationOut()}
     # make runs equal in length
-    targets = targets[:3536,:,:n_targets]
-    n_samples, n_subj = targets.shape[:2]
+    targets = targets[:, :3536, :n_targets]
+    n_subj, n_samples = targets.shape[:2]
     run_length = n_samples / n_runs
-    features = joblib.load('/data/mboos/encoding/stimulus/preprocessed/{}_stimuli.pkl'.format(stimulus_name)).astype('float32')[:n_samples]
-    # ordering is now [n_runs * samples_per_run * n_subj] with C-ordering (last index changes fastest
+    features = features.astype('float32')[:n_samples]
+
+    # ordering is now [n_subj * n_runs * samples_per_run, n_targets] with C-ordering (last index changes fastest
     targets = np.reshape(targets, (-1, n_targets))
-    features = np.repeat(features, n_subj, axis=0)
-    groups_subj = np.tile(np.arange(n_subj), n_samples)
-    groups_runs = np.repeat(np.arange(n_runs), run_length*n_subj)
+    features = np.tile(features, (n_subj, 1))
+    groups_subj = np.repeat(np.arange(n_subj), n_samples)
+    one_run = np.repeat(np.arange(n_runs), run_length)
+    groups_runs = np.tile(one_run, n_subj)
+
     groups = np.array([groups_subj, groups_runs]).T
     predictions = cross_val_predict(estimator, features, targets, groups=groups, **cv_args)
     return predictions, estimator.fit(features, targets)
@@ -123,13 +125,11 @@ def pca_reduction(predictions, select_voxels=None, **pca_params):
     pc_predictions = pca.fit_transform(predictions)
     return pc_predictions, pca
 
-
 def project_fmri_on_pcs(subj, pca, select_voxels=None, folder='/data/mboos/encoding'):
     '''Projects fmri data from subj onto the pca and returns it'''
     from os.path import join
     fmri = joblib.load(join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj)))
     return pca.transform(fmri)
-
 
 def scores_from_pc(pc, pc_predictions, pca, subj, n_splits=10, folder='/data/mboos/encoding'):
     '''Computes scores for individual voxels for only one pc for subj.

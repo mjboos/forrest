@@ -15,15 +15,17 @@ def save_map(scores, threshold=None, model='logBSC_H200', name='mean', mask='gro
     fname = os.path.join(folder, 'maps', '{}_{}_map.nii.gz'.format(name, model))
     unmasked.to_filename(fname)
 
-def glassbrain_contours(map_dict, colors=['r', 'g', 'b', 'cyan', 'magenta', 'k'], cutoff=[90], smooth=None, alpha=1.0, **kwargs):
+def glassbrain_contours(map_dict, colors=['r', 'g', 'b', 'cyan', 'magenta', 'k'], cutoff=[0.1], smooth=None, alpha=1.0, **kwargs):
     import nilearn.image as img
     from nilearn import plotting
     from itertools import cycle
     img_dict = { label : img.load_img(map_dict[label]) for label in sorted(map_dict.keys())}
     display = plotting.plot_glass_brain(None, **kwargs)
     for color, (label, image) in zip(cycle(colors), img_dict.iteritems()):
+        data = image.get_data()
+        data = data[np.logical_not(np.isclose(data, 0.0))]
+        cutoff_perc = np.percentile(data.flatten(), cutoff)
         image = img.smooth_img(image, fwhm=smooth)
-        cutoff_perc = np.percentile(image.get_data().flatten(), cutoff)
         display.add_contours(image, levels=cutoff_perc, colors=color, alpha=alpha)
     return display
 

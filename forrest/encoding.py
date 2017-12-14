@@ -201,10 +201,26 @@ def pearson_r(x,y):
     r = (1/(n-1))*(x*y).sum(axis=0)
     return r
 
+def r2_score_predictions(predictions, subj, folder='/data/mboos/encoding', n_splits=10):
+    '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
+    from sklearn.metrics import r2_score
+    from sklearn.feature_selection import VarianceThreshold
+    file_name = join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj))
+    fmri = joblib.load(file_name, mmap_mode='c')
+    fmri = fmri[:predictions.shape[0]]
+    split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
+    scores = []
+    for indices in split_indices:
+        r2_scores = r2_score(fmri[:, indices], predictions[:, indices], multioutput='raw_values')
+        r2_scores[np.var(fmri[:, indices], axis=0)==0.0] = 0
+        scores.append(r2_scores)
+    return np.concatenate(scores)
+
 def score_predictions(predictions, subj, folder='/data/mboos/encoding', n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
     file_name = join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj))
     fmri = joblib.load(file_name, mmap_mode='c')
+    fmri = fmri[:predictions.shape[0]]
     split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
     scores = []
     for indices in split_indices:
