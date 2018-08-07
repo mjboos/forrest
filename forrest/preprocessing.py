@@ -6,8 +6,6 @@ import joblib
 from nilearn.masking import unmask
 from nibabel import save
 
-#TODO: review preprocessing
-
 def preprocess_and_tmp_save_fmri(datapath, task, subj, model, scratch_path, group_mask='group_temporal_lobe_mask.nii.gz'):
     '''preprocesses one subject from Forrest Gump
     aligns to group template

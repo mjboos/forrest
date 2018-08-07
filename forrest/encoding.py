@@ -13,10 +13,6 @@ from sklearn.utils import check_X_y, check_array
 from sklearn.utils.validation import check_is_fitted
 from sklearn.base import RegressorMixin
 
-def block_estimator_to_multioutput(block_estimator):
-    '''Returns one estimator from concatenating all block estimators'''
-    pass
-
 def coef_to_float32(estimator):
     estimator.coef_ = estimator.coef_.astype('float32')
     return estimator
@@ -24,7 +20,7 @@ def coef_to_float32(estimator):
 class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
     """Multi target regression with block-wise fit
 
-    This strategy consists of splitting the the targets in blocks and fitting one regressor per block.
+    This strategy consists of splitting the targets in blocks and fitting one regressor per block.
     The estimator used needs to natively support multioutput.
     Parameters
     ----------

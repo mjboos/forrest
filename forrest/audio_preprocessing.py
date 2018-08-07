@@ -37,7 +37,6 @@ def mel_to_patches(mel, patch_size=(10, 48)):
     from sklearn.feature_extraction.image import extract_patches_2d
     patches = extract_patches_2d(mel, patch_size=patch_size)[::patch_size[0], :]
     patches = np.reshape(patches, (-1, patch_size[0]*patch_size[1]))
-    patches[patches<1] = 1
     patches = np.log(patches)
     return patches
 
