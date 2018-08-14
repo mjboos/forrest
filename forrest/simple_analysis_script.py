@@ -1,11 +1,11 @@
 import joblib
 import numpy as np
 from forrest import encoding as enc
-from forrest import plotting
-import preprocessing as pre
+from forrest.preprocessing import process_subj
+from forrest import features
 from sklearn.linear_model import RidgeCV
 import mkl
-from subspace import adjust_r
+import librosa as lbr
 
 mkl.set_num_threads(4)
 
@@ -14,10 +14,13 @@ memory = joblib.Memory(cachedir='/data/mboos/joblib')
 ridge_params = {
         'alphas' : [1, 1e2, 1e3, 1e4, 1e5]}
 
-stimuli = 'logBSC_H200'
-subjects=[1,2,5,6,7,8,9,11,12,14,15,16,17,18,19]
+subjects=[1]
 
 scores = []
+
+# make simple RMSE audio features
+audio_rmse = features.extract_audio_rep('/data/mboos/audio', hop_length=4410, frame_length=8820, audio_extractor=partial(features.extract_audio, extraction_func=lbr.feature.rmse))
+audio_rmse = features.lag_features(audio_rmse)
 
 for subj in subjects:
     pre.process_subj(subj, group_mask='/home/mboos/encoding_paper/group_temporal_lobe_mask.nii.gz')

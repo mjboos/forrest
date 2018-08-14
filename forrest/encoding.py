@@ -180,15 +180,6 @@ def get_ridge_predictions_model(stimulus, fmri, n_splits=10, n_jobs=1, **ridge_p
     model.fit(stimulus, fmri)
     return predictions, model
 
-def encoding_for_subject(subj, stimulus_name='logBSC_H200', folder='/data/mboos/encoding', n_splits=10, n_jobs=1, memory=joblib.Memory(cachedir=None), **ridge_params):
-    '''Fits voxel-wise encoding models for subj using stimuli in stimulus_name
-    and returns a tuple of (predictions, Ridge-model)'''
-    fit_model_func = memory.cache(get_ridge_predictions_model)
-    stimulus = joblib.load(join(folder,'stimulus','preprocessed', '{}_stimuli.pkl'.format(stimulus_name)))
-    fmri = joblib.load(join(folder,'fmri','fmri_subj_{}.pkl'.format(subj)),
-                             mmap_mode='c')
-    return fit_model_func(stimulus, fmri, n_splits=n_splits, n_jobs=n_jobs, **ridge_params)
-
 def pearson_r(x,y):
     from sklearn.preprocessing import StandardScaler
     x = StandardScaler().fit_transform(x)
@@ -197,13 +188,11 @@ def pearson_r(x,y):
     r = (1/(n-1))*(x*y).sum(axis=0)
     return r
 
-def r2_score_predictions(predictions, subj, folder='/data/mboos/encoding', n_splits=10):
+def r2_score_predictions(predictions, fmri_filename, n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
     from sklearn.metrics import r2_score
     from sklearn.feature_selection import VarianceThreshold
-    file_name = join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj))
-    fmri = joblib.load(file_name, mmap_mode='c')
-    fmri = fmri[:predictions.shape[0]]
+    fmri = joblib.load(fmri_filename, mmap_mode='c')
     split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
     scores = []
     for indices in split_indices:
@@ -212,14 +201,13 @@ def r2_score_predictions(predictions, subj, folder='/data/mboos/encoding', n_spl
         scores.append(r2_scores)
     return np.concatenate(scores)
 
-def score_predictions(predictions, subj, folder='/data/mboos/encoding', n_splits=10):
+def r_score_predictions(predictions, fmri_filename, n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
-    file_name = join(folder, 'fmri', 'fmri_subj_{}.pkl'.format(subj))
-    fmri = joblib.load(file_name, mmap_mode='c')
-    fmri = fmri[:predictions.shape[0]]
+    from sklearn.metrics import r2_score
+    from sklearn.feature_selection import VarianceThreshold
+    fmri = joblib.load(fmri_filename, mmap_mode='c')
     split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
     scores = []
     for indices in split_indices:
         scores.append(pearson_r(predictions[:, indices], fmri[:, indices]))
     return np.concatenate(scores)
-
