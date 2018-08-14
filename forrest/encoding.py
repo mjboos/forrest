@@ -197,6 +197,42 @@ def pearson_r(x,y):
     r = (1/(n-1))*(x*y).sum(axis=0)
     return r
 
+def adjust_r(r, n=3539, **fdr_params):
+    from statsmodels.sandbox.stats.multicomp import fdrcorrection0
+    from scipy.stats import betai
+    df = n-2
+    t_squared = r*r * (df / ((1.0 - r) * (1.0 + r)))
+    prob = betai(0.5*df, 0.5, df / (df+t_squared))
+    return fdrcorrection0(prob)
+
+def array_to_mni_map(array, fname, data_path, threshold=None, mask=None, **kwargs):
+    '''Transforms array to mni space and saves it as mni map
+    IN:
+        array       -       ndarray, array of statistics in group sapce to transform to mni space
+        fname       -       string, name under which to save the mni map
+        data_path   -       string, path to Forrest Gump directory
+        threshold   -       float, optional, threshold for mni map
+        mask        -       string or None, optional, filename of the mask to unmask array.
+                            If None the group brain mask in data_path is used.'''
+    from nipype.interfaces import fsl
+    import os
+    if threshold is not None:
+        arr[np.abs(arr)<threshold] = 0
+    if mask is None:
+        mask = os.path.join(data_path, 'templates', 'grpbold7Tp1', 'brainmask_group_template.nii.gz')
+    unmasked = unmask(arr, mask)
+    unmasked.to_filename(fname)
+    flirt = fsl.ApplyXFM()
+    flirt.inputs.in_file = fname
+    flirt.inputs.out_file = fname
+    flirt.inputs.padding_size = 0
+    flirt.inputs.interp = 'nearestneighbour'
+    flirt.inputs.reference = os.path.join(data_path, 'templates', 'grpbold7Tp1',
+                                          'in_mni', 'brain_12dof.nii.gz')
+    flirt.inputs.in_matrix_file = os.path.join(data_path, 'templates', 'grpbold7Tp1',
+                                               'xfm', 'tmpl2mni_12dof.mat')
+    flirt.run()
+
 def r2_score_predictions(predictions, fmri, n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
     from sklearn.metrics import r2_score
