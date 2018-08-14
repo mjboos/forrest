@@ -54,7 +54,4 @@ def process_subj(subj, scratch_path='/data/mboos/tmp/',
     # since it does not correspond to a movie part anymore
     fmri_data = fmri_data[:-1]
 
-    # and also the first six seconds since not enough stimulus was presented to predict yet
-    fmri_data = fmri_data[3:]
-
     joblib.dump(fmri_data, save_path+'fmri_subj_{}.pkl'.format(subj))
