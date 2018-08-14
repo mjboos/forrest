@@ -27,8 +27,9 @@ class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
     estimator : estimator object
         An estimator object implementing `fit` and `predict` and supporting multioutput.
 
-    n_splits : int, optional, default=10
-        The number of splits for the target variable.
+    n_blocks : int, optional, default=10
+        The number of blocks for the target variable.
+        This is a split along *targets* (columns of the array), not observations (rows of the array).
 
     n_jobs : int, optional, default=1
         The number of jobs to run in parallel for `fit`. If -1,
@@ -166,19 +167,27 @@ class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
             scores.append(r)
         return np.concatenate(scores)
 
-def get_ridge_predictions_model(stimulus, fmri, n_splits=10, n_jobs=1, **ridge_params):
-    '''fits ridge regression to predict fmri from stimulus.
-    Returns tuple with predictions and BlockMultioutput model'''
-    estimator = RidgeCV(**ridge_params)
-    kfold = KFold(n_splits=8)
-    predictions = np.vstack([BlockMultiOutput(estimator, n_splits=n_splits, n_jobs=n_jobs
-        ).fit(stimulus[train], fmri[train]
+def get_predictions_model(stimulus, fmri, estimator, cv=None):
+    '''Fits estimator to predict fmri from stimulus.
+    Returns out-of-fold predictions and trained estimator
+    IN:
+        stimulus    -       ndarray of shape (observations x features), stimulus features
+        fmri        -       ndarray of shape (observations x voxels), fmri data
+        estimator   -       scikit-learn compatible estimator object (exposes fit and predict methods).
+                            Needs to support predictions for multiple targets.
+        cv          -       cross validation iterator or None, optional. If None use 8-fold cross-validation (one fold per fMRI run)
+    OUT:
+        (predictions, estimator)'''
+    if cv is None:
+        cv =  KFold(n_splits=8)
+    # create out of fold predictions
+    predictions = np.vstack([estimator.fit(stimulus[train], fmri[train]
         ).predict(stimulus[test]).astype('float32')
         for train, test in kfold.split(stimulus, fmri)])
 
-    model = BlockMultiOutput(estimator, n_splits=n_splits, n_jobs=n_jobs)
-    model.fit(stimulus, fmri)
-    return predictions, model
+    # now fit once on all data
+    estimator.fit(stimulus, fmri)
+    return predictions, estimator
 
 def pearson_r(x,y):
     from sklearn.preprocessing import StandardScaler
@@ -188,11 +197,11 @@ def pearson_r(x,y):
     r = (1/(n-1))*(x*y).sum(axis=0)
     return r
 
-def r2_score_predictions(predictions, fmri_filename, n_splits=10):
+def r2_score_predictions(predictions, fmri, n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
     from sklearn.metrics import r2_score
-    from sklearn.feature_selection import VarianceThreshold
-    fmri = joblib.load(fmri_filename, mmap_mode='c')
+    if isinstance(fmri, basestring):
+        fmri = joblib.load(fmri, mmap_mode='c')
     split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
     scores = []
     for indices in split_indices:
@@ -201,11 +210,11 @@ def r2_score_predictions(predictions, fmri_filename, n_splits=10):
         scores.append(r2_scores)
     return np.concatenate(scores)
 
-def r_score_predictions(predictions, fmri_filename, n_splits=10):
+def r_score_predictions(predictions, fmri, n_splits=10):
     '''Helper functions to score a matrix of obs X voxels of predictions without loading all fmri data into memory'''
     from sklearn.metrics import r2_score
-    from sklearn.feature_selection import VarianceThreshold
-    fmri = joblib.load(fmri_filename, mmap_mode='c')
+    if isinstance(fmri, basestring):
+        fmri = joblib.load(fmri, mmap_mode='c')
     split_indices = np.array_split(np.arange(predictions.shape[1]), n_splits)
     scores = []
     for indices in split_indices:
