@@ -6,8 +6,31 @@ import sys
 import argparse
 import joblib
 import glob
+import pandas as pd
 
 #TODO: document inner workings of function
+
+def convert_annotation_to_TR(annotations, which_col=None):
+    '''Converts annotations to an array where each row denotes a TR of the movie.
+    annotations can either be a filename of an annotation file or a pandas DataFrame.
+    which_col specificies which annotation to use, None means all.
+    '''
+    if isinstance(annotations, basestring):
+        annotations = pd.DataFrame.from_csv(annotations, sep='\t', index_col=None)
+    if which_col is not None:
+        annotations = annotations[['onset', 'duration', which_col]]
+
+    tr_vector = np.zeros((3542, annotations.shape[-1]-2))
+    for i, annotation in annotations.iterrows():
+        tr_vector[time_to_TR(annotation['onset'], annotation['duration'])] = annotation.values[2:]
+    return tr_vector
+
+
+def time_to_TR(time, duration):
+    '''Indicate which TRs are active at a given time segment'''
+    start_tr = np.floor(time / 2.0)
+    return (start_tr + np.arange(np.ceil(duration/2.0).astype('int'))).astype('int')
+
 
 def extract_audio(wavname, extraction_func=lbr.feature.melspectrogram, **kwargs):
     from scipy.io.wavfile import read
@@ -42,14 +65,9 @@ def folder_to_audio_generator(folder_path, audio_extractor=extract_mel,
                                    (n_tr, -1, audio.shape[-1]))
         yield audio
 
-def extract_audio_rep(folder_path, audio_extractor=extract_mel,
-                      preprocessed_data_folder='./audio_preprocessed/', **kwargs):
+def extract_audio_rep(folder_path, audio_extractor=extract_mel, **kwargs):
     '''Extracts Mel specgram for all wave files in folder and saves them'''
     from . import preprocessing
-    folder_name = os.path.basename(folder_path)
-    if not os.path.exists(preprocessed_data_folder + folder_name):
-        os.makedirs(preprocessed_data_folder+folder_name)
-    final_folder = preprocessed_data_folder + folder_name
     audio_rep = reduce(preprocessing.cut_out_overlap,
                                folder_to_audio_generator(folder_path,
                                                          audio_extractor=audio_extractor,
@@ -63,6 +81,8 @@ def lag_features(features, n_samples_lag=4, n_samples_offset=1):
     '''Lags features with a lag of n_samples_lag and removes
     n_samples_offset most recent samples.
     '''
+    if len(features.shape) > 2:
+        features = np.squeeze(features)
     try:
         n_samples, n_features = features.shape
     except ValueError:

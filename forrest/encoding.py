@@ -39,9 +39,9 @@ class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
         to the overhead of spawning processes.
     """
 
-    def __init__(self, estimator, n_splits=10, n_jobs=1):
+    def __init__(self, estimator, n_blocks=10, n_jobs=1):
         self.estimator = estimator
-        self.n_splits = n_splits
+        self.n_blocks = n_blocks
         self.n_jobs = n_jobs
 
     def fit(self, X, y, sample_weight=None):
@@ -78,7 +78,7 @@ class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
                 not has_fit_parameter(self.estimator, 'sample_weight')):
             raise ValueError("Underlying estimator does not support"
                              " sample weights.")
-        kfold = KFold(n_splits=self.n_splits)
+        kfold = KFold(n_splits=self.n_blocks)
         smpl_X, smpl_y = np.zeros((y.shape[1],1)), np.zeros((y.shape[1],1))
         self.estimators_ = Parallel(n_jobs=self.n_jobs)(
             delayed(_fit_estimator)(
@@ -156,7 +156,7 @@ class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
         """
         from sklearn.preprocessing import StandardScaler
         from itertools import izip
-        kfold = KFold(n_splits=self.n_splits)
+        kfold = KFold(n_splits=self.n_blocks)
         smpl_X, smpl_y = np.zeros((y.shape[1],1)), np.zeros((y.shape[1],1))
         scores = []
         for prediction, (_, block) in izip(self.partial_predict(X), kfold.split(smpl_X, smpl_y)):
@@ -167,7 +167,7 @@ class BlockMultiOutput(MultiOutputEstimator, RegressorMixin):
             scores.append(r)
         return np.concatenate(scores)
 
-def get_predictions_model(stimulus, fmri, estimator, cv=None):
+def get_predictions_and_fit_model(stimulus, fmri, estimator, cv=None):
     '''Fits estimator to predict fmri from stimulus.
     Returns out-of-fold predictions and trained estimator
     IN:
@@ -183,7 +183,7 @@ def get_predictions_model(stimulus, fmri, estimator, cv=None):
     # create out of fold predictions
     predictions = np.vstack([estimator.fit(stimulus[train], fmri[train]
         ).predict(stimulus[test]).astype('float32')
-        for train, test in kfold.split(stimulus, fmri)])
+        for train, test in cv.split(stimulus, fmri)])
 
     # now fit once on all data
     estimator.fit(stimulus, fmri)
@@ -205,22 +205,20 @@ def adjust_r(r, n=3539, **fdr_params):
     prob = betai(0.5*df, 0.5, df / (df+t_squared))
     return fdrcorrection0(prob)
 
-def array_to_mni_map(array, fname, data_path, threshold=None, mask=None, **kwargs):
+def array_to_mni_map(array, fname, data_path, mask, threshold=None, **kwargs):
     '''Transforms array to mni space and saves it as mni map
     IN:
         array       -       ndarray, array of statistics in group sapce to transform to mni space
         fname       -       string, name under which to save the mni map
         data_path   -       string, path to Forrest Gump directory
-        threshold   -       float, optional, threshold for mni map
-        mask        -       string or None, optional, filename of the mask to unmask array.
-                            If None the group brain mask in data_path is used.'''
+        mask        -       string, filename of the mask to unmask array.
+        threshold   -       float, optional, threshold for mni map'''
     from nipype.interfaces import fsl
     import os
+    from nilearn.masking import unmask
     if threshold is not None:
-        arr[np.abs(arr)<threshold] = 0
-    if mask is None:
-        mask = os.path.join(data_path, 'templates', 'grpbold7Tp1', 'brainmask_group_template.nii.gz')
-    unmasked = unmask(arr, mask)
+        array[np.abs(array)<threshold] = 0
+    unmasked = unmask(array, mask)
     unmasked.to_filename(fname)
     flirt = fsl.ApplyXFM()
     flirt.inputs.in_file = fname

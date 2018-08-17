@@ -24,7 +24,8 @@ def preprocess_and_tmp_save_fmri(data_path, task, subj, model, tmp_path,
 
     flavor = 'dico_bold7Tp1_to_subjbold7Tp1'
     if group_mask is None:
-        group_mask = 'brainmask_group_template.nii.gz'
+        group_mask = os.path.join(data_path, 'sub{0:03d}'.format(subj), 'templates',
+                              'bold7Tp1', 'in_grpbold7Tp1', 'brain_mask.nii.gz')
     mask_fname = os.path.join(data_path, 'sub{0:03d}'.format(subj), 'templates',
                               'bold7Tp1', 'brain_mask.nii.gz')
     for run_id in dhandle.get_task_bold_run_ids(task)[subj]:
@@ -32,11 +33,11 @@ def preprocess_and_tmp_save_fmri(data_path, task, subj, model, tmp_path,
                                               chunks=run_id-1, mask=mask_fname,
                                               flavor=flavor)
         filename = 'brain_subj_{}_run_{}.nii.gz'.format(subj, run_id)
-        tmp_path = os.path.join(tmp_path, filename)
-        save(unmask(run_ds.samples.astype('float32'), mask_fname), tmp_path)
+        tmp_file = os.path.join(tmp_path, filename)
+        save(unmask(run_ds.samples.astype('float32'), mask_fname), tmp_file)
         warp = fsl.ApplyWarp()
-        warp.inputs.in_file = tmp_path
-        warp.inputs.out_file = tmp_path+'group_'+filename
+        warp.inputs.in_file = tmp_file
+        warp.inputs.out_file = os.path.join(tmp_path, 'group_'+filename)
         warp.inputs.ref_file = os.path.join(data_path, 'templates',
                               'grpbold7Tp1', 'brain.nii.gz')
         warp.inputs.field_file = os.path.join(data_path, 'sub{0:03d}'.format(subj),
@@ -44,7 +45,7 @@ def preprocess_and_tmp_save_fmri(data_path, task, subj, model, tmp_path,
                                               'subj2tmpl_warp.nii.gz')
         warp.inputs.interp = 'nn'
         warp.run()
-        os.remove(tmp_path)
+        os.remove(tmp_file)
         run_ds = mvpa.fmri_dataset(os.path.join(tmp_path, 'group_'+filename), mask=group_mask, chunks=run_id-1)
         mvpa.poly_detrend(run_ds, polyord=1)
         mvpa.zscore(run_ds)
@@ -76,4 +77,4 @@ def process_subj(subj, save_path, data_path, tmp_path=None, **kwargs):
     # since it does not correspond to a movie part anymore
     fmri_data = fmri_data[:-1]
 
-    joblib.dump(fmri_data, save_path+'fmri_subj_{}.pkl'.format(subj))
+    joblib.dump(fmri_data, os.path.join(save_path, 'fmri_subj_{}.pkl'.format(subj)))
