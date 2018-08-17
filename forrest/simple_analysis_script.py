@@ -50,7 +50,7 @@ character_TR_ind = features.lag_features(character_TR_ind, n_samples_lag=4)
 # we use RMSE as a baseline, because the loudness of the auditory stimulus will explain most variance and we want to control for that
 # thus we add character and emotional features to the RMSE features and test what they explain beyond pure RMSE
 feature_dict = {'RMSE' : audio_rmse,
-                'character' : np.concatenate([audio_rmse, character_TR_ind], axis=1)}
+                'character' : np.concatenate([audio_rmse, character_TR_ind], axis=1),
                 'arousal' : np.concatenate([audio_rmse, emotional_arousal], axis=1)}
 
 # BlockMultiOutput fits a MultiOutputEstimator for each block of targets
@@ -63,11 +63,10 @@ for subj in subjects:
     process_subj(subj, path_to_save, path_to_fg)
     fmri_data = joblib.load(path_to_save+'/'+'fmri_subj_{}_test.pkl'.format(subj), mmap_mode='c')
 
-    # we will remove the first 6s because after lagging stimulus features lack the first (n_samples_lag - 1) samples
-    fmri_data = fmri_data[3:]
     subj_score_dict = dict()
     for feature_name, stimulus_features in feature_dict.items():
-        predictions, model = enc.get_predictions_and_fit_model(stimulus_features, fmri_data, model)
+        # we will remove the first 6s because after lagging stimulus features lack the first (n_samples_lag - 1) samples
+        predictions, model = enc.get_predictions_and_fit_model(stimulus_features, fmri_data[3:], model)
 
         scores_tmp = enc.r_score_predictions(predictions, fmri_data)
         # we set all correlations to zero that are non-significant after false-discovery rate correction
