@@ -8,7 +8,7 @@ import seaborn as sns
 import auditory_feature_helpers as aud
 import coef_helper_functions as cfh
 from sklearn.metrics import silhouette_samples, silhouette_score
-import matplotlib.cm as cm 
+import matplotlib.cm as cm
 import coef_helper_functions as cfh
 import auditory_feature_helpers as aud
 import matplotlib.pyplot as plt
@@ -17,9 +17,16 @@ import pandas as pd
 import joblib
 import seaborn as sns
 import streamlit as st
-
+from matplotlib.colors import to_hex
 from scipy.cluster.hierarchy import dendrogram, linkage, fcluster
 
+def make_link_col_dict(Z, label_cols, default_col='k'):
+    '''Returns a dictionary that contains k link colors (to be used by e.g. scipy's dendrogram function)'''
+    link_cols = {}
+    for i, i12 in enumerate(Z[:,:2].astype(int)):
+        c1, c2 = (link_cols[x] if x > len(Z) else label_cols[x] for x in i12)
+        link_cols[i+1+len(Z)] = c1 if c1 == c2 else default_col
+    return link_cols
 
 Ws = joblib.load('logBSC_H200_W.pkl')
 def get_Z(bsc_distmats):
@@ -151,7 +158,7 @@ def compute_for_cluster(n_clusters):
                                    'Separability': np.tile(np.repeat(separability_cluster, 15), 3),
                                    'MPS Separability': np.tile(np.repeat(mps_sep_clstrs, 15), 3) 
                                   })
-    return labels, clstrs_full, pc_corr_clstrs
+    return labels, Z, clstrs_full, pc_corr_clstrs
 
 
 
@@ -285,8 +292,14 @@ def melt_df(data, vars_to_use=None):
 n_clusters = st.sidebar.number_input('Indicate the number of clusters to use:', min_value=2, max_value=200, value=5)
 cluster_idx = st.sidebar.number_input('Which cluster to display:', min_value=1, max_value=n_clusters, value=1)
 
+cmap = cm.tab10 if n_clusters <= 10 else cm.tab20
+modval = 10 if n_clusters<= 10 else 20
 
-labels, clstrs_full, pc_corr_clstrs  = compute_for_cluster(n_clusters)
+labels, Z, clstrs_full, pc_corr_clstrs  = compute_for_cluster(n_clusters)
+
+label_cols = np.array([to_hex(cmap((lbl-1) % modval)) for lbl in labels])
+label_cols[labels==cluster_idx] = 'magenta'
+coldict = make_link_col_dict(Z, label_cols, default_col='k')
 
 st.header('Exploring the hierarchy of cortical auditory processing')
 melted_df = melt_df(summarize_PCs(pc_corr_clstrs))
@@ -296,6 +309,10 @@ st.pyplot(fig1)
 melted_clstr_char = pd.melt(clstrs_full, id_vars=['Cluster'], var_name='Feature')
 fig2=sns.catplot(data=melted_clstr_char, x='Cluster', y='value', col='Feature', kind='box', sharey=False, col_wrap=3)
 st.pyplot(fig2)
+st.subheader('Selected cluster is colored magenta')
+fig, axes = plt.subplots(1, 1, figsize=(20, 10))
+_=dendrogram(Z, link_color_func=lambda x: coldict[x], ax=axes)
+st.pyplot(fig)
 
 st.subheader('Cluster {} exemplary basis functions and key attributes'.format(cluster_idx))
 fig3 = plot_cluster(Ws[labels==cluster_idx],
